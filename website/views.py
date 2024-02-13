@@ -1,8 +1,14 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
+from rest_framework import viewsets
+from .serializers import ExampleSerializer
 from .forms import SignUpForm, AddRecordForm
-from .models import Record
+from .models import Record, Example
+
+class ExampleView(viewsets.ModelViewSet):
+	serializer_class = ExampleSerializer
+	queryset = Example.objects.all()
 
 
 def home(request):
