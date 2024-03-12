@@ -1,0 +1,8 @@
+django
+nibabel
+boto3
+rest_framework
+torch
+monai
+numpy
+matplotlib
