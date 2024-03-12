@@ -71,9 +71,11 @@ def output_fn(prediction, accept='application/json'):
     if type(prediction) == np.ndarray:
         pred_dims = prediction.shape
         pred_bytes = prediction.tobytes()
+        pred_type = str(np.dtype(prediction))
         prediction = {
             'shape': pred_dims,
             'data': pred_bytes,
+            'dtype': pred_type,
         }
     if accept == 'application/json':
         return json.dumps({'Body': prediction})
