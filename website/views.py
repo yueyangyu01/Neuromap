@@ -2,9 +2,13 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from rest_framework import viewsets
-from .serializers import ExampleSerializer
-from .forms import SignUpForm, AddRecordForm
-from .models import Record, Example
+from rest_framework.response import Response
+from rest_framework.decorators import api_view
+from .serializers import ExampleSerializer, PatientSerializer
+from .patient import SignUpForm, AddRecordForm
+from .models import Record, Example, Patient
+import boto3
+from django.conf import settings
 
 class ExampleView(viewsets.ModelViewSet):
 	serializer_class = ExampleSerializer
@@ -92,6 +96,27 @@ def add_record(request):
 		messages.success(request, "You Must Be Logged In...")
 		return redirect('home')
 
+def create_user(request):
+	form = AddRecordForm(request.POST or None)
+	if request.user.is_authenticated:
+		if request.method == "POST":
+			if form.is_valid():
+				add_record = form.save()
+				messages.success(request, "Record Added...")
+				return redirect('home')
+		return render(request, 'add_record.html', {'form':form})
+	else:
+		messages.success(request, "You Must Be Logged In...")
+		return redirect('home')
+	
+@api_view(['POST'])
+def create_patient(request):
+    if request.method == 'POST':
+        serializer = PatientSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=viewsets.HTTP_201_CREATED)
+        return Response(serializer.errors, status=viewsets.HTTP_400_BAD_REQUEST)
 
 def update_record(request, pk):
 	if request.user.is_authenticated:
@@ -105,3 +130,14 @@ def update_record(request, pk):
 	else:
 		messages.success(request, "You Must Be Logged In...")
 		return redirect('home')
+	
+@api_view(['POST'])
+def upload_file(request):
+    file_obj = request.FILES['file']
+    s3 = boto3.client(
+        's3',
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+    )
+    s3.upload_fileobj(file_obj, settings.AWS_STORAGE_BUCKET_NAME, file_obj.name)
+    return Response({'message': 'File uploaded successfully'})
