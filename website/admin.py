@@ -7,4 +7,5 @@ class ExampleAdmin(admin.ModelAdmin):
 #Register models here
 admin.site.register(Record)
 admin.site.register(Example, ExampleAdmin)
-admin.site.register(Patient, Physician)
+admin.site.register(Patient)
+admin.site.register(Physician)
