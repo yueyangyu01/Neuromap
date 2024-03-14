@@ -30,6 +30,8 @@ import numpy as np
 import boto3
 import json
 import io
+import os
+import tempfile
 
 def list_image_paths(patient_id, bucket_name='neuromapuserimages'):
     s3 = boto3.client('s3')
@@ -51,14 +53,11 @@ def transform_data(input_path):
         bucket_name = s3_path.split('/')[2]
         object_key = '/'.join(s3_path.split('/')[3:])
 
-        # Fetch the object from S3
-        obj = s3.get_object(Bucket=bucket_name, Key=object_key)
-
-        # Read the object data into a BytesIO buffer
-        buffer = io.BytesIO(obj['Body'].read())
-        img = nib.load(buffer)
-        img_data = img.get_fdata()
-        imgs_data.append(img_data)
+        # This will run on Sagemaker
+        if 'nii.gz' in object_key :
+            img = nib.load(s3_path)
+            img_data = img.get_fdata()
+            imgs_data.append(img_data)
 
     # Makes a 4D array
     image_data = np.stack(imgs_data, axis=0)
@@ -97,11 +96,16 @@ def model_fn(model_path):
         out_channels=3,
         dropout_prob=0.2,
     )
+    model_path = os.path.join(model_path, 'model.pth')
+
     try:
         model.load_state_dict(torch.load(model_path))
     except:
         with open(model_path, 'rb') as f:
-            model.load_state_dict(torch.load(f))
+            if torch.cuda.is_available():
+                model.load_state_dict(torch.load(f))
+            else:
+                model.load_state_dict(torch.load(f, map_location=torch.device('cpu')))
 
     # Put model in eval mode for inference
     model.eval()
