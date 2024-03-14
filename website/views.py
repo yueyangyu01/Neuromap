@@ -4,7 +4,7 @@ from django.contrib import messages
 from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
-from .serializers import ExampleSerializer, PatientSerializer
+from .serializers import ExampleSerializer, PatientSerializer, PhysicianSerializer
 from .patient import SignUpForm, AddRecordForm
 from .models import Record, Example, Patient
 import boto3
@@ -118,6 +118,14 @@ def create_patient(request):
             return Response(serializer.data, status=viewsets.HTTP_201_CREATED)
         return Response(serializer.errors, status=viewsets.HTTP_400_BAD_REQUEST)
 
+@api_view(['POST'])
+def create_physician(request):
+    serializer = PhysicianSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=201)
+    return Response(serializer.errors, status=400)
+
 def update_record(request, pk):
 	if request.user.is_authenticated:
 		current_record = Record.objects.get(id=pk)
@@ -141,3 +149,65 @@ def upload_file(request):
     )
     s3.upload_fileobj(file_obj, settings.AWS_STORAGE_BUCKET_NAME, file_obj.name)
     return Response({'message': 'File uploaded successfully'})
+
+@api_view(['PUT'])
+def update_physician(request, physician_id):
+    try:
+        physician = Physician.objects.get(pk=physician_id)
+    except Physician.DoesNotExist:
+        return Response({'error': 'Physician not found'}, status=404)
+
+    serializer = PhysicianSerializer(physician, data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors, status=400)
+
+@api_view(['DELETE'])
+def delete_physician(request, physician_id):
+    try:
+        physician = Physician.objects.get(pk=physician_id)
+    except Physician.DoesNotExist:
+        return Response({'error': 'Physician not found'}, status=404)
+
+    physician.delete()
+    return Response({'message': 'Physician deleted successfully'})
+
+@api_view(['GET'])
+def list_patients(request):
+    patients = Patient.objects.all()
+    serializer = PatientSerializer(patients, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+def get_patient(request, patient_id):
+    try:
+        patient = Patient.objects.get(pk=patient_id)
+    except Patient.DoesNotExist:
+        return Response({'error': 'Patient not found'}, status=404)
+
+    serializer = PatientSerializer(patient)
+    return Response(serializer.data)
+
+@api_view(['PUT'])
+def update_patient(request, patient_id):
+    try:
+        patient = Patient.objects.get(pk=patient_id)
+    except Patient.DoesNotExist:
+        return Response({'error': 'Patient not found'}, status=404)
+
+    serializer = PatientSerializer(patient, data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors, status=400)
+
+@api_view(['DELETE'])
+def delete_patient(request, patient_id):
+    try:
+        patient = Patient.objects.get(pk=patient_id)
+    except Patient.DoesNotExist:
+        return Response({'error': 'Patient not found'}, status=404)
+
+    patient.delete()
+    return Response({'message': 'Patient deleted successfully'})

@@ -20,4 +20,11 @@ urlpatterns = [
     path('api/', include(router.urls)),
     path('api/create_patient/', views.create_patient, name='create_patient'),
     path('upload/', views.upload_file, name='upload_file'),
+    path('create_physician/', views.create_physician, name='create_physician'),
+    path('update_physician/<int:physician_id>/', views.update_physician, name='update_physician'),
+    path('delete_physician/<int:physician_id>/', views.delete_physician, name='delete_physician'),
+    path('list_patients/', views.list_patients, name='list_patients'),
+    path('get_patient/<int:patient_id>/', views.get_patient, name='get_patient'),
+    path('update_patient/<int:patient_id>/', views.update_patient, name='update_patient'),
+    path('delete_patient/<int:patient_id>/', views.delete_patient, name='delete_patient'),
 ]
