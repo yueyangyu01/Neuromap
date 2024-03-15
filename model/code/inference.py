@@ -3,20 +3,10 @@ import matplotlib.pyplot as plt
 import nibabel as nib
 import torch
 from monai.transforms import (
-    Activations,
-    Activationsd,
-    AsDiscrete,
-    AsDiscreted,
     Compose,
-    Invertd,
-    LoadImaged,
-    MapTransform,
+
     NormalizeIntensityd,
     Orientationd,
-    RandFlipd,
-    RandScaleIntensityd,
-    RandShiftIntensityd,
-    RandSpatialCropd,
     Spacingd,
     EnsureTyped,
     EnsureChannelFirstd,
@@ -48,16 +38,18 @@ def list_image_paths(patient_id, bucket_name='neuromapuserimages'):
 def transform_data(input_path):
     s3 = boto3.client('s3')
     imgs_data = []
+    img_headers = []
     for s3_path in input_path:
         # Parse the S3 path to get the bucket name and object key
         bucket_name = s3_path.split('/')[2]
         object_key = '/'.join(s3_path.split('/')[3:])
 
-        # This will run on Sagemaker
+        # This will run on Sagemaker, try and see if it works
         if 'nii.gz' in object_key :
             img = nib.load(s3_path)
             img_data = img.get_fdata()
             imgs_data.append(img_data)
+            img_headers.append(img.header)
 
     # Makes a 4D array
     image_data = np.stack(imgs_data, axis=0)
@@ -67,24 +59,24 @@ def transform_data(input_path):
 
     transforms = Compose(
         [
-            ToTensor(),
-            EnsureChannelFirstd(keys="image"),
-            EnsureTyped(keys="image"),
-            Orientationd(keys="image", axcodes="RAS"),
-            Spacingd(
-                keys=["image"],
-                pixdim=(1.0, 1.0, 1.0),
-                mode=("bilinear", "nearest"),
-            ),
-            NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+        EnsureTyped(keys=["image"]),
+        Orientationd(keys=["image"], axcodes="RAS"),
+        Spacingd(
+            keys=["image"],
+            pixdim=(1.0, 1.0, 1.0),
+            mode=("bilinear"),
+        ),
+        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True)      
         ]
     )
 
     transformed_imgs = transforms(image_dict)
 
+    print("Image is transformed")
     final_img = transformed_imgs['image']
 
-    return final_img
+    return final_img, img_headers
+
 
 
 def model_fn(model_path):
@@ -114,6 +106,8 @@ def model_fn(model_path):
 
 def inference(model, input, VAL_AMP=False):
     def _compute(input_img):
+        print(input_img.shape)
+        input_img = torch.unsqueeze(input_img, 0)
         return sliding_window_inference(
             inputs=input_img,
             roi_size=(240, 240, 160),
@@ -129,7 +123,7 @@ def inference(model, input, VAL_AMP=False):
         return _compute(input)
 
 def output_fn(prediction, accept='application/json'):
-    if type(prediction) == np.ndarray:
+    if isinstance(prediction, torch.Tensor):
         pred_dims = prediction.shape
         pred_bytes = prediction.tobytes()
         pred_type = str(np.dtype(prediction))

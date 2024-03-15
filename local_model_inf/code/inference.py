@@ -18,6 +18,8 @@ import json
 import io
 import os
 import tempfile
+from skimage.measure import marching_cubes
+import trimesh
 
 
 # TESTING: DONE AND WORKS
@@ -37,6 +39,7 @@ def list_image_paths(patient_id, bucket_name='neuromapuserimages'):
 def transform_data(input_path):
     s3 = boto3.client('s3')
     imgs_data = []
+    img_headers = []
     for s3_path in input_path:
         # Parse the S3 path to get the bucket name and object key
         bucket_name = s3_path.split('/')[2]
@@ -58,6 +61,7 @@ def transform_data(input_path):
                 img = nib.load(local_path)
                 img_data = img.get_fdata()
                 imgs_data.append(img_data)
+                img_headers.append(img.header)
 
     # Makes a 4D array
     image_data = np.stack(imgs_data, axis=0)
@@ -83,7 +87,7 @@ def transform_data(input_path):
     print("Image is transformed")
     final_img = transformed_imgs['image']
 
-    return final_img
+    return final_img, img_headers
 
 # TESTING: DONE
 def model_fn(model_path):
@@ -137,6 +141,59 @@ def send_to_s3(data, bucket, key):
     s3.put_object(Body=data, Bucket=bucket, Key=key)
 
 
+def inf_to_nifti(pred, patient_id):
+    if isinstance(prediction, torch.Tensor):
+        prediction = prediction.detach().cpu().numpy()
+    
+    prediction = nib.load(prediction)
+    save_directory = os.path.join('/local_data/predictions', str(patient_id))
+    nib.save(prediction, save_directory)
+
+def pytorch_to_stl(prediction):
+    if isinstance(prediction, torch.Tensor):
+        prediction = prediction.detach().cpu().numpy()
+        inf_0 = prediction[0, 0, :, :, :]
+        inf_1 = prediction[0, 1, :, :, :]
+        inf_2 = prediction[0, 2, :, :, :]
+
+        verts_0, faces_0, normals_0, values_0 = marching_cubes(inf_0, level=0.5)
+        verts_1, faces_1, normals_1, values_1 = marching_cubes(inf_1, level=0.5)
+        verts_2, faces_2, normals_2, values_2 = marching_cubes(inf_2, level=0.5)
+
+        mesh_0 = trimesh.Trimesh(vertices=verts_0, faces=faces_0)
+        mesh_1 = trimesh.Trimesh(vertices=verts_1, faces=faces_1)
+        mesh_2 = trimesh.Trimesh(vertices=verts_2, faces=faces_2)
+
+        return mesh_0, mesh_1, mesh_2
+    raise TypeError("Input must be a torch.Tensor")
+    
+def export_stl(mesh, mesh_num, patient_id):
+    # If patient directory doesn't exist, create it
+    if not os.path.exists(os.path.join('local_data/predictions', str(patient_id))):
+        os.makedirs(os.path.join('local_data/predictions', str(patient_id)))
+    save_directory = os.path.join('local_data/predictions', str(patient_id), str(mesh_num))
+    mesh.export(save_directory+f'{patient_id}.stl')
+
+
+def local_output(prediction, accept='application/json'):
+    if isinstance(prediction, torch.Tensor):
+        prediction = prediction.detach().cpu().numpy()
+    if accept == 'application/json':
+        # Turn into blob
+        prediction_blob = 0
+        prediction_dtype = str(prediction.dtype)
+        # eval(prediction_dtype)
+        prediction_shape = prediction.shape
+
+        prediction = {
+            'shape': prediction_shape,
+            'data': prediction_blob,
+            'dtype': prediction_dtype,
+        }
+
+        return json.dumps({'Body': prediction})
+
+
 def output_fn(prediction, accept='application/json'):
     if type(prediction) == np.ndarray:
         pred_dims = prediction.shape
@@ -160,15 +217,27 @@ model = model_fn('./')
 print(model.__class__)
 
 # Load the image paths -- WORKS
-test_paths = list_image_paths('danazarezankova')
+test_paths = list_image_paths('bobmarley')
+print(test_paths)
 
 # Create images 
-imgs = transform_data(test_paths)
+imgs, og_headers = transform_data(test_paths)
+print(imgs.shape)
 
 # Inference
 pred = inference(model, imgs)
 print(pred.shape)
+# Only need outputs 0 and 1 (WT and ET)
 
 # Send to S3
-send_to_s3(pred, 'neuromapuserimages', 'danazarezankova/prediction.nii.gz')
-print("sent to S3")
+# send_to_s3(pred, 'neuromapuserimages', 'danazarezankova/prediction.nii.gz')
+# print("sent to S3")
+
+# Output
+# Goal: convert pytorch to stl
+mesh_0, mesh_1, mesh_2 = pytorch_to_stl(pred)
+# O: Whole tumor 1: Tumor core 2: Enhanced tumor
+export_stl(mesh_0, 0, 'bobmarley')
+export_stl(mesh_1, 1, 'bobmarley')
+export_stl(mesh_2, 2, 'bobmarley')
+print("exported to stl")
