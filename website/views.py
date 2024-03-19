@@ -9,11 +9,28 @@ from .patient import SignUpForm, AddRecordForm
 from .models import Record, Example, Patient
 import boto3
 from django.conf import settings
+from django.http import JsonResponse
+from django.middleware.csrf import get_token
+
+def get_csrf_token(request):
+    csrf_token = get_token(request)
+    return JsonResponse({'csrfToken': csrf_token})
 
 class ExampleView(viewsets.ModelViewSet):
 	serializer_class = ExampleSerializer
 	queryset = Example.objects.all()
 
+class PatientViewSet(viewsets.ModelViewSet):
+    queryset = Patient.objects.all()
+    serializer_class = PatientSerializer
+
+class PatientView(viewsets.ModelViewSet):
+	serializer_class = PatientSerializer
+	queryset = Example.objects.all()
+
+class PhysicianView(viewsets.ModelViewSet):
+	serializer_class = PatientSerializer
+	queryset = Example.objects.all()
 
 def home(request):
 	records = Record.objects.all()

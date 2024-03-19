@@ -2,9 +2,14 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
 from . import views
+from django.urls import path
+from .views import get_csrf_token
 
 router = routers.DefaultRouter()
 router.register(r'examples', views.ExampleView, 'example')
+router.register(r'patient', views.PatientView, 'patient')
+router.register(r'patients', views.PatientViewSet)
+router.register(r'physician', views.PhysicianView, 'physician')
 
 urlpatterns = [
     #path('admin/', admin.site.urls),
@@ -27,4 +32,6 @@ urlpatterns = [
     path('get_patient/<int:patient_id>/', views.get_patient, name='get_patient'),
     path('update_patient/<int:patient_id>/', views.update_patient, name='update_patient'),
     path('delete_patient/<int:patient_id>/', views.delete_patient, name='delete_patient'),
+    path('api/', include(router.urls)),
+    path('csrf-token/', get_csrf_token, name='get_csrf_token'),
 ]

@@ -8,10 +8,15 @@ class ExampleSerializer(serializers.ModelSerializer):
             'name',
             'description',
         )
+
 class PatientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Patient
-        fields = ['firstName', 'lastName', 'email', 'gender', 'dob', 'mri_image', 'diagnosis', 'affected_areas', 'treatment_options']
+        fields = '__all__'
+# class PatientSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = Patient
+#         fields = ['firstName', 'lastName', 'email', 'gender', 'dob', 'mri_image', 'diagnosis', 'affected_areas', 'treatment_options']
 
 class PhysicianSerializer(serializers.ModelSerializer):
     class Meta:
